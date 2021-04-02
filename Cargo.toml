@@ -1,0 +1,13 @@
+[package]
+name = "dark-integers"
+version = "0.1.0"
+authors = ["Bogdan Opanchuk <bogdan@opanchuk.net>"]
+edition = "2018"
+
+[dependencies]
+num-traits = "0.2"
+subtle = "2.4"
+
+[dev-dependencies]
+num-bigint = "0.4"
+proptest = "1.0"
