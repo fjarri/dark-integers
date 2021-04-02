@@ -9,16 +9,16 @@ impl CarryOperations for u64 {
     }
 }
 
-pub trait BigEndian {
+pub trait BigEndian: Copy {
     const SIZE: usize;
-    fn to_bytes(&self) -> [u8; Self::SIZE];
+    fn to_bytes(self) -> [u8; Self::SIZE];
     fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self;
 }
 
 impl BigEndian for u64 {
     const SIZE: usize = 8;
 
-    fn to_bytes(&self) -> [u8; Self::SIZE] {
+    fn to_bytes(self) -> [u8; Self::SIZE] {
         self.to_be_bytes()
     }
 

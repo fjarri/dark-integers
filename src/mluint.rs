@@ -33,7 +33,7 @@ impl<T: LimbType, const N: usize> MLUInt<T, N> {
         Self(res)
     }
 
-    pub fn to_be_bytes(&self) -> [u8; N * T::SIZE] {
+    pub fn to_be_bytes(self) -> [u8; N * T::SIZE] {
         let mut res = [0u8; N * T::SIZE];
         for i in 0..N {
             let idx = (N - 1 - i) * T::SIZE;
