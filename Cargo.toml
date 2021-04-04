@@ -16,3 +16,9 @@ subtle = "2.4"
 [dev-dependencies]
 num-bigint = "0.4"
 proptest = "1.0"
+criterion = { version = "0.3", features = ["html_reports"] }
+
+[[bench]]
+name = "bench"
+path = "bench/bench.rs"
+harness = false
