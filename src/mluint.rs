@@ -8,6 +8,7 @@ use crate::utils::{BigEndian, CarryOperations};
 pub trait LimbType: Unsigned + Copy + BigEndian {}
 
 impl LimbType for u64 {}
+impl LimbType for u32 {}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MLUInt<T: LimbType, const N: usize>([T; N]);
@@ -169,30 +170,44 @@ mod tests {
     }
 
     prop_compose! {
-        fn mluint()(bytes in any::<[u8; 32]>()) -> MLUInt<u64, 4> {
+        fn mluint_4x64()(bytes in any::<[u8; 32]>()) -> MLUInt<u64, 4> {
             MLUInt::<u64, 4>::from_be_bytes(bytes)
+        }
+    }
+
+    prop_compose! {
+        fn mluint_8x32()(bytes in any::<[u8; 32]>()) -> MLUInt<u32, 8> {
+            MLUInt::<u32, 8>::from_be_bytes(bytes)
         }
     }
 
     proptest! {
         #[test]
-        fn fuzzy_roundtrip_to_bytes(x in mluint()) {
+        fn fuzzy_roundtrip_to_bytes_u64(x in mluint_4x64()) {
             let x_back = MLUInt::<u64, 4>::from_be_bytes(x.to_be_bytes());
             assert_eq!(x, x_back);
         }
 
         #[test]
-        fn fuzzy_add(x in mluint(), y in mluint()) {
+        fn fuzzy_add_u64(x in mluint_4x64(), y in mluint_4x64()) {
             let reference = MLUInt::<u64, 4>::from(x.to_biguint().unwrap() + y.to_biguint().unwrap());
             let test = x + y;
             assert_eq!(test, reference);
         }
 
         #[test]
-        fn fuzzy_mul(x in mluint(), y in mluint()) {
+        fn fuzzy_mul_u64(x in mluint_4x64(), y in mluint_4x64()) {
             let reference = MLUInt::<u64, 4>::from(x.to_biguint().unwrap() * y.to_biguint().unwrap());
             let test = x * y;
             assert_eq!(test, reference);
         }
+
+        #[test]
+        fn fuzzy_mul_u32(x in mluint_8x32(), y in mluint_8x32()) {
+            let reference = MLUInt::<u32, 8>::from(x.to_biguint().unwrap() * y.to_biguint().unwrap());
+            let test = x * y;
+            assert_eq!(test, reference);
+        }
+
     }
 }
