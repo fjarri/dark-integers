@@ -165,5 +165,12 @@ mod tests {
             let x_back = MLUInt::<u64, 4>::from_be_bytes(x.to_be_bytes());
             assert_eq!(x, x_back);
         }
+
+        #[test]
+        fn fuzzy_add(x in mluint(), y in mluint()) {
+            let reference = MLUInt::<u64, 4>::from(x.to_biguint().unwrap() + y.to_biguint().unwrap());
+            let test = x + y;
+            assert_eq!(test, reference);
+        }
     }
 }
