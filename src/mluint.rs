@@ -3,7 +3,7 @@ use core::ops::{Add, Mul};
 use num_traits::sign::Unsigned;
 use num_traits::{One, Zero};
 
-use crate::utils::{BigEndian, CarryOperations};
+use crate::utils::{muladd, muladd_fast, adc_array, BigEndian, PrimitiveUInt};
 
 pub trait LimbType: Unsigned + Copy + BigEndian {}
 
@@ -44,21 +44,7 @@ impl<T: LimbType, const N: usize> MLUInt<T, N> {
     }
 }
 
-fn adc_array<T: LimbType + CarryOperations, const N: usize>(
-    lhs: &[T; N],
-    rhs: &[T; N],
-) -> ([T; N], T) {
-    let mut res = [T::zero(); N];
-    let mut carry = T::zero();
-    for i in 0..N {
-        let (r, c) = T::adc(lhs[i], rhs[i], carry);
-        carry = c;
-        res[i] = r;
-    }
-    (res, carry)
-}
-
-impl<T: LimbType + CarryOperations, const N: usize> Add for MLUInt<T, N> {
+impl<T: LimbType + PrimitiveUInt, const N: usize> Add for MLUInt<T, N> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -67,7 +53,7 @@ impl<T: LimbType + CarryOperations, const N: usize> Add for MLUInt<T, N> {
     }
 }
 
-impl<T: LimbType + CarryOperations, const N: usize> Zero for MLUInt<T, N> {
+impl<T: LimbType + PrimitiveUInt, const N: usize> Zero for MLUInt<T, N> {
     fn zero() -> Self {
         Self([T::zero(); N])
     }
@@ -77,7 +63,7 @@ impl<T: LimbType + CarryOperations, const N: usize> Zero for MLUInt<T, N> {
     }
 }
 
-impl<T: LimbType + CarryOperations, const N: usize> Mul for MLUInt<T, N> {
+impl<T: LimbType + PrimitiveUInt, const N: usize> Mul for MLUInt<T, N> {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
@@ -87,12 +73,13 @@ impl<T: LimbType + CarryOperations, const N: usize> Mul for MLUInt<T, N> {
 
         let mut res = [T::zero(); N];
 
-        (c0, c1) = T::muladd_fast(self.0[0], other.0[0], c0, c1);
+        (c0, c1) = muladd_fast(self.0[0], other.0[0], c0, c1);
         (res[0], c0, c1) = (c0, c1, T::zero());
 
+        #[allow(clippy::needless_range_loop)]
         for i in 1..N {
             for j in 0..i + 1 {
-                (c0, c1, c2) = T::muladd(self.0[j], other.0[i - j], c0, c1, c2);
+                (c0, c1, c2) = muladd(self.0[j], other.0[i - j], c0, c1, c2);
             }
             (res[i], c0, c1, c2) = (c0, c1, c2, T::zero());
         }
@@ -101,7 +88,7 @@ impl<T: LimbType + CarryOperations, const N: usize> Mul for MLUInt<T, N> {
     }
 }
 
-impl<T: LimbType + CarryOperations, const N: usize> One for MLUInt<T, N> {
+impl<T: LimbType + PrimitiveUInt, const N: usize> One for MLUInt<T, N> {
     fn one() -> Self {
         let mut res = [T::zero(); N];
         res[0] = T::one();
@@ -208,6 +195,5 @@ mod tests {
             let test = x * y;
             assert_eq!(test, reference);
         }
-
     }
 }
