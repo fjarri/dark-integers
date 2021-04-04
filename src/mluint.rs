@@ -79,9 +79,24 @@ impl<T: LimbType + CarryOperations, const N: usize> Zero for MLUInt<T, N> {
 impl<T: LimbType + CarryOperations, const N: usize> Mul for MLUInt<T, N> {
     type Output = Self;
 
-    #[allow(dead_code)]
-    fn mul(self, _other: Self) -> Self {
-        Self::zero() // FIXME: temporary stub
+    fn mul(self, other: Self) -> Self {
+        let mut c0 = T::zero();
+        let mut c1 = T::zero();
+        let mut c2 = T::zero();
+
+        let mut res = [T::zero(); N];
+
+        (c0, c1) = T::muladd_fast(self.0[0], other.0[0], c0, c1);
+        (res[0], c0, c1) = (c0, c1, T::zero());
+
+        for i in 1..N {
+            for j in 0..i + 1 {
+                (c0, c1, c2) = T::muladd(self.0[j], other.0[i - j], c0, c1, c2);
+            }
+            (res[i], c0, c1, c2) = (c0, c1, c2, T::zero());
+        }
+
+        Self(res)
     }
 }
 
@@ -170,6 +185,13 @@ mod tests {
         fn fuzzy_add(x in mluint(), y in mluint()) {
             let reference = MLUInt::<u64, 4>::from(x.to_biguint().unwrap() + y.to_biguint().unwrap());
             let test = x + y;
+            assert_eq!(test, reference);
+        }
+
+        #[test]
+        fn fuzzy_mul(x in mluint(), y in mluint()) {
+            let reference = MLUInt::<u64, 4>::from(x.to_biguint().unwrap() * y.to_biguint().unwrap());
+            let test = x * y;
             assert_eq!(test, reference);
         }
     }

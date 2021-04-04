@@ -3,6 +3,7 @@
 #![feature(const_fn)]
 #![feature(const_generics)]
 #![feature(const_evaluatable_checked)]
+#![feature(destructuring_assignment)]
 
 mod mluint;
 mod moduint;
