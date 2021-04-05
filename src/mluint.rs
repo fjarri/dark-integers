@@ -3,7 +3,7 @@ use core::ops::{Add, Mul};
 use num_traits::{One, Zero};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
-use crate::primitives::{muladd, muladd_fast, PrimitiveUInt, BigEndian};
+use crate::primitives::{muladd, muladd_fast, BigEndian, PrimitiveUInt};
 use crate::traits::{AddWithCarry, SubWithBorrow};
 
 pub trait LimbType: PrimitiveUInt + BigEndian {}
@@ -97,7 +97,9 @@ impl<T: LimbType + PrimitiveUInt, const N: usize> One for MLUInt<T, N> {
     }
 }
 
-impl<T: LimbType + ConditionallySelectable, const N: usize> ConditionallySelectable for MLUInt<T, N> {
+impl<T: LimbType + ConditionallySelectable, const N: usize> ConditionallySelectable
+    for MLUInt<T, N>
+{
     fn conditional_select(x: &Self, y: &Self, choice: Choice) -> Self {
         let mut res = [T::default(); N];
         for i in 0..N {
@@ -144,7 +146,6 @@ impl<T: LimbType, const N: usize> SubWithBorrow for MLUInt<T, N> {
         (borrow, Self::new(res))
     }
 }
-
 
 #[cfg(test)]
 mod tests {

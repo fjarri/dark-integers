@@ -6,7 +6,7 @@
 #![feature(destructuring_assignment)]
 
 mod mluint;
-//mod moduint;
+mod moduint;
 mod primitives;
 mod traits;
 

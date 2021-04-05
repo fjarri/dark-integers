@@ -1,18 +1,21 @@
-use core::ops::{Sub, Shr};
+use core::ops::Shr;
 
-use num_traits::{Zero, One};
+use num_traits::sign::Unsigned;
+use num_traits::One;
 use subtle::{ConditionallySelectable, ConstantTimeEq};
 
-pub trait PrimitiveUInt: Sized + Copy + PartialEq + PartialOrd + Zero + One + Default + Sub<Output=Self> + Shr<Output=Self> + ConditionallySelectable + ConstantTimeEq {
+pub trait PrimitiveUInt:
+    Unsigned + Sized + Copy + PartialOrd + Default + Shr + ConditionallySelectable + ConstantTimeEq
+{
     const BITS: Self;
     fn from_bool_ct(b: bool) -> Self;
     fn mulhilo(x: Self, y: Self) -> (Self, Self);
     fn adc(a: Self, b: Self, carry: Self) -> (Self, Self);
     /// Computes `a - (b + borrow)`, returning the result along with the new borrow.
-    /// 64-bit version.
     fn sbb(a: Self, b: Self, borrow: Self) -> (Self, Self);
     fn wrapping_add(self, other: Self) -> Self;
     fn wrapping_mul(self, other: Self) -> Self;
+    fn wrapping_sub(self, other: Self) -> Self;
     fn as_u8(self) -> u8;
 }
 
@@ -25,7 +28,10 @@ impl PrimitiveUInt for u64 {
     #[inline(always)]
     fn mulhilo(x: Self, y: Self) -> (Self, Self) {
         let prod = (x as u128).wrapping_mul(y as u128);
-        ((prod >> <Self as PrimitiveUInt>::BITS) as Self, prod as Self)
+        (
+            (prod >> <Self as PrimitiveUInt>::BITS) as Self,
+            prod as Self,
+        )
     }
     #[inline(always)]
     fn adc(a: Self, b: Self, carry: Self) -> (Self, Self) {
@@ -49,6 +55,10 @@ impl PrimitiveUInt for u64 {
         self.wrapping_mul(other)
     }
     #[inline(always)]
+    fn wrapping_sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
     fn as_u8(self) -> u8 {
         self as u8
     }
@@ -63,7 +73,10 @@ impl PrimitiveUInt for u32 {
     #[inline(always)]
     fn mulhilo(x: Self, y: Self) -> (Self, Self) {
         let prod = (x as u64) * (y as u64);
-        ((prod >> <Self as PrimitiveUInt>::BITS) as Self, prod as Self)
+        (
+            (prod >> <Self as PrimitiveUInt>::BITS) as Self,
+            prod as Self,
+        )
     }
     #[inline(always)]
     fn adc(a: Self, b: Self, carry: Self) -> (Self, Self) {
@@ -85,26 +98,14 @@ impl PrimitiveUInt for u32 {
         self.wrapping_mul(other)
     }
     #[inline(always)]
+    fn wrapping_sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
     fn as_u8(self) -> u8 {
         self as u8
     }
 }
-
-/*
-impl<T: PrimitiveUInt> AddWithCarry for T {
-    type CarryType = T;
-    fn add_with_carry(x: Self, y: Self, carry: Self) -> (Self::CarryType, Self) {
-        T::adc(x, y, carry)
-    }
-}
-
-impl<T: PrimitiveUInt> SubWithBorrow for T {
-    type BorrowType = T;
-    fn sub_with_borrow(x: Self, y: Self, borrow: Self) -> (Self::BorrowType, Self) {
-        T::sbb(x, y, borrow)
-    }
-}
-*/
 
 /// Add a*b to the number defined by (c0,c1,c2). c2 must never overflow.
 pub(crate) fn muladd<T: PrimitiveUInt>(a: T, b: T, c0: T, c1: T, c2: T) -> (T, T, T) {

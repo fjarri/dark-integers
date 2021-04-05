@@ -1,42 +1,75 @@
+use core::marker::PhantomData;
 use core::ops::{Add, Mul};
-use num_traits::{One, Zero};
 
-trait Modulus: Copy + Clone + PartialEq {
-    type Value: Zero + One + Add + Copy + Clone + PartialEq;
-    const MODULUS: Self::Value;
+use num_traits::{One, Zero};
+use subtle::{Choice, ConditionallySelectable};
+
+use crate::mluint::{LimbType, MLUInt};
+use crate::primitives::PrimitiveUInt;
+use crate::traits::{AddWithCarry, SubWithBorrow};
+
+trait Modulus<T>: Copy + Clone + PartialEq {
+    const MODULUS: T;
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-struct ModUInt<V: Modulus>(V::Value);
+trait ValueType: AddWithCarry + SubWithBorrow + ConditionallySelectable + Zero + One {}
 
-impl<V> Add for ModUInt<V>
-where
-    V: Modulus,
-{
+impl<T: LimbType, const N: usize> ValueType for MLUInt<T, N> {}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+struct ModUInt<T: ValueType, V: Modulus<T>> {
+    value: T,
+    modulus: PhantomData<V>,
+}
+
+/// Adds a (little-endian) multi-limb number to another multi-limb number,
+/// returning the result and the resulting carry as a constant-time `Choice`
+/// (`0` if there was no carry and `1` if there was).
+#[inline(always)]
+fn adc_array_with_overflow<T: AddWithCarry>(x: &T, y: &T) -> (Choice, T) {
+    let (carry, res) = T::add_with_carry(x, y);
+    (Choice::from(carry.as_u8()), res)
+}
+
+/// Subtracts a (little-endian) multi-limb number from another multi-limb number,
+/// returning the result and the resulting borrow as a constant-time `Choice`
+/// (`0` if there was no borrow and `1` if there was).
+#[inline(always)]
+fn sbb_array_with_underflow<T: SubWithBorrow>(x: &T, y: &T) -> (Choice, T) {
+    let (borrow, res) = T::sub_with_borrow(x, y);
+    (
+        Choice::from((T::BorrowType::zero().wrapping_sub(borrow)).as_u8()),
+        res,
+    )
+}
+
+impl<T: ValueType, V: Modulus<T>> Add for ModUInt<T, V> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        Self(self.0 + other.0)
+        let (overflow, res1) = adc_array_with_overflow(&self.value, &other.value);
+        let (underflow, res2) = sbb_array_with_underflow(&res1, &V::MODULUS);
+        Self {
+            value: T::conditional_select(&res1, &res2, overflow | !underflow),
+            modulus: PhantomData,
+        }
     }
 }
 
-impl<V> Zero for ModUInt<V>
-where
-    V: Modulus,
-{
+impl<T: ValueType, V: Modulus<T>> Zero for ModUInt<T, V> {
     fn zero() -> Self {
-        Self(V::Value::zero())
+        Self {
+            value: T::zero(),
+            modulus: PhantomData,
+        }
     }
 
     fn is_zero(&self) -> bool {
-        self.0.is_zero()
+        self.value.is_zero()
     }
 }
 
-impl<V> Mul for ModUInt<V>
-where
-    V: Modulus,
-{
+impl<T: ValueType, V: Modulus<T>> Mul for ModUInt<T, V> {
     type Output = Self;
 
     #[allow(dead_code)]
@@ -45,12 +78,12 @@ where
     }
 }
 
-impl<V> One for ModUInt<V>
-where
-    V: Modulus,
-{
+impl<T: ValueType, V: Modulus<T>> One for ModUInt<T, V> {
     fn one() -> Self {
-        Self(V::Value::one())
+        Self {
+            value: T::one(),
+            modulus: PhantomData,
+        }
     }
 }
 
@@ -65,21 +98,20 @@ mod tests {
     #[derive(Copy, Clone, Debug, PartialEq)]
     struct MyType;
 
-    impl Modulus for MyType {
-        type Value = MLUInt<u64, 4>;
-        const MODULUS: Self::Value = Self::Value::new([251, 0, 0, 0]);
+    impl Modulus<MLUInt<u64, 4>> for MyType {
+        const MODULUS: MLUInt<u64, 4> = MLUInt::<u64, 4>::new([251, 0, 0, 0]);
     }
 
     #[test]
     fn zero() {
-        let x = ModUInt::<MyType>::zero();
+        let x = ModUInt::<MLUInt<u64, 4>, MyType>::zero();
         assert!(x.is_zero());
     }
 
     #[test]
     fn one() {
-        let x = ModUInt::<MyType>::zero();
-        let y = ModUInt::<MyType>::one();
+        let x = ModUInt::<MLUInt<u64, 4>, MyType>::zero();
+        let y = ModUInt::<MLUInt<u64, 4>, MyType>::one();
         assert!(x + y == y);
     }
 }
