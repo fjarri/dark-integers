@@ -6,8 +6,9 @@
 #![feature(destructuring_assignment)]
 
 mod mluint;
-mod moduint;
-mod utils;
+//mod moduint;
+mod primitives;
+mod traits;
 
 #[cfg(test)]
 mod dev;

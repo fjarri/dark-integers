@@ -1,11 +1,12 @@
 use core::ops::{Add, Mul};
 
-use num_traits::sign::Unsigned;
 use num_traits::{One, Zero};
+use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
-use crate::utils::{muladd, muladd_fast, adc_array, BigEndian, PrimitiveUInt};
+use crate::primitives::{muladd, muladd_fast, PrimitiveUInt, BigEndian};
+use crate::traits::{AddWithCarry, SubWithBorrow};
 
-pub trait LimbType: Unsigned + Copy + BigEndian {}
+pub trait LimbType: PrimitiveUInt + BigEndian {}
 
 impl LimbType for u64 {}
 impl LimbType for u32 {}
@@ -48,8 +49,8 @@ impl<T: LimbType + PrimitiveUInt, const N: usize> Add for MLUInt<T, N> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        let (res, _) = adc_array(&self.0, &other.0);
-        Self(res)
+        let (_, res) = Self::add_with_carry(&self, &other);
+        res
     }
 }
 
@@ -95,6 +96,55 @@ impl<T: LimbType + PrimitiveUInt, const N: usize> One for MLUInt<T, N> {
         Self::new(res)
     }
 }
+
+impl<T: LimbType + ConditionallySelectable, const N: usize> ConditionallySelectable for MLUInt<T, N> {
+    fn conditional_select(x: &Self, y: &Self, choice: Choice) -> Self {
+        let mut res = [T::default(); N];
+        for i in 0..N {
+            res[i] = T::conditional_select(&x.0[i], &y.0[i], choice)
+        }
+        Self::new(res)
+    }
+}
+
+impl<T: LimbType + ConstantTimeEq, const N: usize> ConstantTimeEq for MLUInt<T, N> {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        let mut res = self.0[0].ct_eq(&other.0[0]);
+        for i in 1..N {
+            res &= self.0[i].ct_eq(&other.0[i]);
+        }
+        res
+    }
+}
+
+impl<T: LimbType, const N: usize> AddWithCarry for MLUInt<T, N> {
+    type CarryType = T;
+    fn add_with_carry(x: &Self, y: &Self) -> (Self::CarryType, Self) {
+        let mut res = [T::zero(); N];
+        let mut carry = T::zero();
+        for i in 0..N {
+            let (c, r) = T::adc(x.0[i], y.0[i], carry);
+            carry = c;
+            res[i] = r;
+        }
+        (carry, Self::new(res))
+    }
+}
+
+impl<T: LimbType, const N: usize> SubWithBorrow for MLUInt<T, N> {
+    type BorrowType = T;
+    fn sub_with_borrow(x: &Self, y: &Self) -> (Self::BorrowType, Self) {
+        let mut res = [T::zero(); N];
+        let mut borrow = T::zero();
+        for i in 0..N {
+            let (b, r) = T::sbb(x.0[i], y.0[i], borrow);
+            borrow = b;
+            res[i] = r;
+        }
+        (borrow, Self::new(res))
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
