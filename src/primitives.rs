@@ -1,11 +1,20 @@
 use core::ops::Shr;
 
+use num_traits::cast::AsPrimitive;
 use num_traits::sign::Unsigned;
 use num_traits::One;
 use subtle::{ConditionallySelectable, ConstantTimeEq};
 
 pub trait PrimitiveUInt:
-    Unsigned + Sized + Copy + PartialOrd + Default + Shr + ConditionallySelectable + ConstantTimeEq
+    Unsigned
+    + Sized
+    + Copy
+    + PartialOrd
+    + Default
+    + Shr
+    + ConditionallySelectable
+    + ConstantTimeEq
+    + AsPrimitive<u8>
 {
     const BITS: Self;
     fn from_bool_ct(b: bool) -> Self;
@@ -16,13 +25,14 @@ pub trait PrimitiveUInt:
     fn wrapping_add(self, other: Self) -> Self;
     fn wrapping_mul(self, other: Self) -> Self;
     fn wrapping_sub(self, other: Self) -> Self;
-    fn as_u8(self) -> u8;
+    fn overflowing_add(self, other: Self) -> (Self, bool);
 }
 
 impl PrimitiveUInt for u64 {
     const BITS: Self = 64;
     #[inline(always)]
     fn from_bool_ct(b: bool) -> Self {
+        // TODO: is it actually constant time?
         b as Self
     }
     #[inline(always)]
@@ -59,8 +69,8 @@ impl PrimitiveUInt for u64 {
         self.wrapping_sub(other)
     }
     #[inline(always)]
-    fn as_u8(self) -> u8 {
-        self as u8
+    fn overflowing_add(self, other: Self) -> (Self, bool) {
+        self.overflowing_add(other)
     }
 }
 
@@ -68,6 +78,7 @@ impl PrimitiveUInt for u32 {
     const BITS: Self = 32;
     #[inline(always)]
     fn from_bool_ct(b: bool) -> Self {
+        // TODO: is it actually constant time?
         b as Self
     }
     #[inline(always)]
@@ -102,8 +113,8 @@ impl PrimitiveUInt for u32 {
         self.wrapping_sub(other)
     }
     #[inline(always)]
-    fn as_u8(self) -> u8 {
-        self as u8
+    fn overflowing_add(self, other: Self) -> (Self, bool) {
+        self.overflowing_add(other)
     }
 }
 
@@ -112,10 +123,10 @@ pub(crate) fn muladd<T: PrimitiveUInt>(a: T, b: T, c0: T, c1: T, c2: T) -> (T, T
     // `th` is at most 0xFFFFFFFFFFFFFFFE
     let (th, tl) = T::mulhilo(a, b);
 
-    let new_c0 = c0.wrapping_add(tl); // overflow is handled on the next line
-    let new_th = th.wrapping_add(T::from_bool_ct(new_c0 < tl)); // at most 0xFFFFFFFFFFFFFFFF
-    let new_c1 = c1.wrapping_add(new_th); // overflow is handled on the next line
-    let new_c2 = c2.wrapping_add(T::from_bool_ct(new_c1 < new_th)); // never overflows by contract (verified in the next line)
+    let (new_c0, overflow) = c0.overflowing_add(tl);
+    let new_th = th.wrapping_add(T::from_bool_ct(overflow)); // at most 0xFFFFFFFFFFFFFFFF
+    let (new_c1, overflow) = c1.overflowing_add(new_th); // overflow is handled on the next line
+    let new_c2 = c2.wrapping_add(T::from_bool_ct(overflow)); // never overflows by contract (verified in the next line)
     debug_assert!((new_c1 >= new_th) || (new_c2 != T::zero()));
     (new_c0, new_c1, new_c2)
 }
@@ -125,8 +136,8 @@ pub(crate) fn muladd_fast<T: PrimitiveUInt>(a: T, b: T, c0: T, c1: T) -> (T, T) 
     // `th` is at most 0xFFFFFFFFFFFFFFFE
     let (th, tl) = T::mulhilo(a, b);
 
-    let new_c0 = c0.wrapping_add(tl); // overflow is handled on the next line
-    let new_th = th.wrapping_add(T::from_bool_ct(new_c0 < tl)); // at most 0xFFFFFFFFFFFFFFFF
+    let (new_c0, overflow) = c0.overflowing_add(tl); // overflow is handled on the next line
+    let new_th = th.wrapping_add(T::from_bool_ct(overflow)); // at most 0xFFFFFFFFFFFFFFFF
     let new_c1 = c1.wrapping_add(new_th); // never overflows by contract (verified in the next line)
     debug_assert!(new_c1 >= new_th);
     (new_c0, new_c1)

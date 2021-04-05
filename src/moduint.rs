@@ -1,6 +1,7 @@
 use core::marker::PhantomData;
 use core::ops::{Add, Mul};
 
+use num_traits::cast::AsPrimitive;
 use num_traits::{One, Zero};
 use subtle::{Choice, ConditionallySelectable};
 
@@ -28,7 +29,7 @@ struct ModUInt<T: ValueType, V: Modulus<T>> {
 #[inline(always)]
 fn adc_array_with_overflow<T: AddWithCarry>(x: &T, y: &T) -> (Choice, T) {
     let (carry, res) = T::add_with_carry(x, y);
-    (Choice::from(carry.as_u8()), res)
+    (Choice::from(carry.as_()), res)
 }
 
 /// Subtracts a (little-endian) multi-limb number from another multi-limb number,
@@ -38,7 +39,7 @@ fn adc_array_with_overflow<T: AddWithCarry>(x: &T, y: &T) -> (Choice, T) {
 fn sbb_array_with_underflow<T: SubWithBorrow>(x: &T, y: &T) -> (Choice, T) {
     let (borrow, res) = T::sub_with_borrow(x, y);
     (
-        Choice::from((T::BorrowType::zero().wrapping_sub(borrow)).as_u8()),
+        Choice::from((T::BorrowType::zero().wrapping_sub(borrow)).as_()),
         res,
     )
 }
