@@ -102,6 +102,7 @@ impl<T: LimbType + ConditionallySelectable, const N: usize> ConditionallySelecta
 {
     fn conditional_select(x: &Self, y: &Self, choice: Choice) -> Self {
         let mut res = [T::default(); N];
+        #[allow(clippy::needless_range_loop)]
         for i in 0..N {
             res[i] = T::conditional_select(&x.0[i], &y.0[i], choice)
         }
@@ -124,6 +125,7 @@ impl<T: LimbType, const N: usize> AddWithCarry for MLUInt<T, N> {
     fn add_with_carry(x: &Self, y: &Self) -> (Self::CarryType, Self) {
         let mut res = [T::zero(); N];
         let mut carry = T::zero();
+        #[allow(clippy::needless_range_loop)]
         for i in 0..N {
             let (c, r) = T::adc(x.0[i], y.0[i], carry);
             carry = c;
@@ -138,6 +140,7 @@ impl<T: LimbType, const N: usize> SubWithBorrow for MLUInt<T, N> {
     fn sub_with_borrow(x: &Self, y: &Self) -> (Self::BorrowType, Self) {
         let mut res = [T::zero(); N];
         let mut borrow = T::zero();
+        #[allow(clippy::needless_range_loop)]
         for i in 0..N {
             let (b, r) = T::sbb(x.0[i], y.0[i], borrow);
             borrow = b;
